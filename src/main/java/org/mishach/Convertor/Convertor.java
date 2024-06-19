@@ -11,23 +11,18 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.mishach.Tools.Constants.*;
 
 
 public class Convertor {
-
-    // если (indexUsedPage % 2 == 0):
-    //  Рассматриваем (tableIndex + 1), где tableIndex = (indexUsedPages / 8) (возможно даже не придется так делать)
-    //  Смотрим ячейку cell.get(tableRow.size() - 1) for(i = 0; ; i++) идем по порядку, сверху вниз
-    //                 cell.get(tableRow.size() - 1) for (j = tableRow.size(); ; j--) идем справа налево
-    // если (indexPage % 2 == 1):
-    //  Рассматриваем (tableIndex) и идем просто по порядку
-    // Лучше написать функцию fillTable()
-
     private static int countOfUsedPages = 0;
     private final String docxFilePath;
+    private List<Boolean> isAddedPageInTable = new ArrayList<>(Collections.nCopies(8, false));
 
     public Convertor(String docxFilePath) {
         this.docxFilePath = docxFilePath;
@@ -39,11 +34,13 @@ public class Convertor {
     }
 
     private void scanFolder() {
+
         try (Stream<Path> paths = Files.walk(Paths.get(PATH_TO_PDF_FOLDER))) {
             paths.forEach(streamFile -> {
                 int countOfPage = PDFScanner.convertPDFPagesToImages(streamFile.toFile());
                 try {
-                    writePagesUseSheetsInCheatFile(countOfPage);
+
+                    writePagesUseSheetsInCheatFile(countOfPage, countOfUsedPages);
                 } catch (IOException | InvalidFormatException e) {
                     System.out.println("scanFolder() errror" + e);
                 }
@@ -61,34 +58,64 @@ public class Convertor {
     // если (indexPage % 2 == 1):
     //  Рассматриваем (tableIndex) и идем просто по порядку
     // Лучше написать функцию fillTable()
-    private void writePagesUseSheetsInCheatFile(int countOfFiles) throws IOException, InvalidFormatException {
+    synchronized private void writePagesUseSheetsInCheatFile(int countOfFiles, int countOfUsedPages) throws IOException, InvalidFormatException {
         Path pathToDocxFile = Paths.get(PATH_TO_DOCX_FILE);
         XWPFDocument document = new XWPFDocument(Files.newInputStream(pathToDocxFile));
         for (int indexPage = 0; indexPage < countOfFiles; indexPage++) {
-            int indexTable = countOfUsedPages / 8; // c 8кой работает, только если это первые 2 страницы, дальше дет наложение
+            int indexTable = countOfUsedPages / 8 + countOfUsedPages / 8;
             int indexRow = countOfUsedPages % 8 / 4 % 2;
             int indexColumn = countOfUsedPages % 8 % 4 / 2;
-            if (countOfUsedPages % 2 == 1){
+            System.out.println(countOfUsedPages + " " + indexPage);
+            if (countOfUsedPages % 2 == 1) {
                 indexTable++;
                 indexColumn = indexColumn == 1 ? 0 : 1;
             }
-
             XWPFTable table = document.getTables().get(indexTable);
             XWPFTableCell cell = table.getRows().get(indexRow).getCell(indexColumn);
-
-            String pathImage = Tools.generatePathToFile("temp/page-", indexPage, ".png");
-            FileInputStream is = new FileInputStream(pathImage);
-
-            XWPFParagraph paragraph = cell.addParagraph();
-            XWPFRun run = paragraph.createRun();
-            run.addPicture(is, Document.PICTURE_TYPE_PNG, pathImage,
-                    Units.toEMU(WIDTH_OF_IMAGE_PAGE),
-                    Units.toEMU(HIGH_OF_IMAGE_PAGE));
-            is.close();
             countOfUsedPages++;
-            document.write(Files.newOutputStream(pathToDocxFile));
+            loadImageToDoc(document, cell, indexPage);
         }
         document.close();
+    }
+
+    private int findIndexOfEmptyCell() {
+        int countAddedFileInTables = 0;
+        int index = 0;
+        for (int indexArray = 0; indexArray < isAddedPageInTable.size(); indexArray++) {
+            if (isAddedPageInTable.get(indexArray)) {
+                countAddedFileInTables++;
+                if (countAddedFileInTables == 8) {
+                    resetBooleanArray();
+                    break;
+                }
+            } else {
+                index = indexArray;
+                isAddedPageInTable.set(index, true);
+                break;
+            }
+        }
+        return index;
+    }
+ /* if (!(cell.getParagraphs().size() == 1 && cell.getParagraphs().get(0).getRuns().isEmpty())) {
+                indexTable++;
+            }*/
+
+    private void loadImageToDoc(XWPFDocument document, XWPFTableCell cell, int indexPage) throws IOException, InvalidFormatException {
+        String pathImage = Tools.generatePathToFile("temp/page-", indexPage, ".png");
+        FileInputStream is = new FileInputStream(pathImage);
+
+        XWPFParagraph paragraph = cell.addParagraph();
+        XWPFRun run = paragraph.createRun();
+        run.addPicture(is, Document.PICTURE_TYPE_PNG, pathImage,
+                Units.toEMU(WIDTH_OF_IMAGE_PAGE),
+                Units.toEMU(HIGH_OF_IMAGE_PAGE));
+        is.close();
+        countOfUsedPages++;
+        document.write(Files.newOutputStream(Paths.get(docxFilePath)));
+    }
+
+    private void resetBooleanArray() {
+        isAddedPageInTable = new ArrayList<>(Collections.nCopies(8, false));
     }
 
     private static void creteTableInDocument(XWPFDocument document, int rows, int columns) {

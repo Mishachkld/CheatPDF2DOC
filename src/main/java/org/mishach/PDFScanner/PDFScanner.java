@@ -17,11 +17,6 @@ import static org.mishach.Tools.Constants.*;
 
 
 public class PDFScanner {
-    // 1. Передаем путь к папке
-    // 2. Метод сохранения
-    // Алгоритм такой:
-    // 2.1. считываем каждый файл из папки, передаем в фунцию, которая распиливает его на изображения (целиком в папку temp)
-    // 2.2. далее располагаем эти файлы в doc для двустороней печати
 
     private static int numbersOfPage = 0;
 
@@ -37,10 +32,10 @@ public class PDFScanner {
         }
         return numbersOfPage;
     }
+
     private static int countPageInPDF(File file) throws IOException {
         return PDDocument.load(file).getNumberOfPages();
     }
-
 
     public static int convertPDFPagesToImages(File pdfFile) { // добавляем в папку temp скрины
         try {
