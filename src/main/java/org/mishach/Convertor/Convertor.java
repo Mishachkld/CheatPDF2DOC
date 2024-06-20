@@ -6,14 +6,14 @@ import org.apache.poi.util.Units;
 import org.apache.poi.xwpf.usermodel.*;
 import org.mishach.PDFScanner.PDFScanner;
 import org.mishach.Tools.Tools;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageMar;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr;
 
 import java.io.*;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.stream.Stream;
 
 import static org.mishach.Tools.Constants.*;
@@ -22,24 +22,22 @@ import static org.mishach.Tools.Constants.*;
 public class Convertor {
     private static int countOfUsedPages = 0;
     private final String docxFilePath;
-    private List<Boolean> isAddedPageInTable = new ArrayList<>(Collections.nCopies(8, false));
 
     public Convertor(String docxFilePath) {
         this.docxFilePath = docxFilePath;
     }
 
     public void generateCheat() {
-        generateDocFile();
+        generateDocxFile();
         scanFolder();
     }
 
     private void scanFolder() {
-
         try (Stream<Path> paths = Files.walk(Paths.get(PATH_TO_PDF_FOLDER))) {
             paths.forEach(streamFile -> {
                 int countOfPage = PDFScanner.convertPDFPagesToImages(streamFile.toFile());
+                System.out.println("Converting: " + streamFile.getFileName());
                 try {
-
                     writePagesUseSheetsInCheatFile(countOfPage, countOfUsedPages);
                 } catch (IOException | InvalidFormatException e) {
                     System.out.println("scanFolder() errror" + e);
@@ -50,17 +48,11 @@ public class Convertor {
         }
     }
 
-
-    // если (indexUsedPage % 2 == 0):
-    //  Рассматриваем (tableIndex + 1), где tableIndex = (indexUsedPages / 8) (возможно даже не придется так делать)
-    //  Смотрим ячейку cell.get(tableRow.size() - 1) for(i = 0; ; i++) идем по порядку, сверху вниз
-    //                 cell.get(tableRow.size() - 1) for (j = tableRow.size(); ; j--) идем справа налево
-    // если (indexPage % 2 == 1):
-    //  Рассматриваем (tableIndex) и идем просто по порядку
-    // Лучше написать функцию fillTable()
+    // переименовать
     synchronized private void writePagesUseSheetsInCheatFile(int countOfFiles, int countOfUsedPages) throws IOException, InvalidFormatException {
         Path pathToDocxFile = Paths.get(PATH_TO_DOCX_FILE);
         XWPFDocument document = new XWPFDocument(Files.newInputStream(pathToDocxFile));
+        System.out.println("Adding images to DOCX file....");
         for (int indexPage = 0; indexPage < countOfFiles; indexPage++) {
             int indexTable = countOfUsedPages / 8 + countOfUsedPages / 8;
             int indexRow = countOfUsedPages % 8 / 4 % 2;
@@ -72,39 +64,17 @@ public class Convertor {
             }
             XWPFTable table = document.getTables().get(indexTable);
             XWPFTableCell cell = table.getRows().get(indexRow).getCell(indexColumn);
-            countOfUsedPages++;
             loadImageToDoc(document, cell, indexPage);
+            countOfUsedPages++; /// костыль
         }
         document.close();
     }
-
-    private int findIndexOfEmptyCell() {
-        int countAddedFileInTables = 0;
-        int index = 0;
-        for (int indexArray = 0; indexArray < isAddedPageInTable.size(); indexArray++) {
-            if (isAddedPageInTable.get(indexArray)) {
-                countAddedFileInTables++;
-                if (countAddedFileInTables == 8) {
-                    resetBooleanArray();
-                    break;
-                }
-            } else {
-                index = indexArray;
-                isAddedPageInTable.set(index, true);
-                break;
-            }
-        }
-        return index;
-    }
- /* if (!(cell.getParagraphs().size() == 1 && cell.getParagraphs().get(0).getRuns().isEmpty())) {
-                indexTable++;
-            }*/
 
     private void loadImageToDoc(XWPFDocument document, XWPFTableCell cell, int indexPage) throws IOException, InvalidFormatException {
         String pathImage = Tools.generatePathToFile("temp/page-", indexPage, ".png");
         FileInputStream is = new FileInputStream(pathImage);
 
-        XWPFParagraph paragraph = cell.addParagraph();
+        XWPFParagraph paragraph = cell.getParagraphs().get(0);
         XWPFRun run = paragraph.createRun();
         run.addPicture(is, Document.PICTURE_TYPE_PNG, pathImage,
                 Units.toEMU(WIDTH_OF_IMAGE_PAGE),
@@ -114,32 +84,62 @@ public class Convertor {
         document.write(Files.newOutputStream(Paths.get(docxFilePath)));
     }
 
-    private void resetBooleanArray() {
-        isAddedPageInTable = new ArrayList<>(Collections.nCopies(8, false));
-    }
 
-    private static void creteTableInDocument(XWPFDocument document, int rows, int columns) {
+    private static void creteTable(XWPFDocument document, int indexTable, int rows, int columns) {
         XWPFTable table = document.createTable(rows, columns);
-        table.setTableAlignment(TableRowAlign.CENTER);
+        table.setWidth("100%");
+        table.setCellMargins(100, 0, 0, 0);
+        for (XWPFTableRow row : table.getRows()) {
+            for (XWPFTableCell cell : row.getTableCells()) {
+                XWPFParagraph cellParagraph = cell.getParagraphs().get(0);
+                switch (indexTable % 2) {
+                    case 0:
+                        cellParagraph.setAlignment(ParagraphAlignment.RIGHT);
+                        break;
+                    case 1:
+                        cellParagraph.setAlignment(ParagraphAlignment.LEFT);
+                        break;
+                }
+            }
+        }
         XWPFParagraph paragraph = document.createParagraph();
         paragraph.setAlignment(ParagraphAlignment.CENTER);
         paragraph.setPageBreak(true);
     }
 
-    private void generateDocFile() {
+    private void generateDocxFile() {
         try {
             FileUtils.touch(new File(docxFilePath));
             XWPFDocument document = new XWPFDocument();
-            int countOfAllPages = PDFScanner.countPageInPDFs();
-            for (int i = 0; i < (countOfAllPages / 4) + 2; i++) {
-                creteTableInDocument(document, 2, 2);
-            }
+            setMarginsToDocxFile(document);
+            addTablesInDocxFile(document);
             FileOutputStream tempOut = new FileOutputStream(docxFilePath);
             document.write(tempOut);
             tempOut.close();
         } catch (IOException e) {
             System.out.println("Не удалось создать файл :(");
         }
+    }
+
+    private void setMarginsToDocxFile(XWPFDocument document) {
+        CTSectPr sectPr = document.getDocument().getBody().addNewSectPr();
+        CTPageMar pageMargin = sectPr.addNewPgMar();
+        pageMargin.setLeft(BigInteger.valueOf(0));
+        pageMargin.setTop(BigInteger.valueOf(0));
+        pageMargin.setRight(BigInteger.valueOf(0));
+        pageMargin.setBottom(BigInteger.valueOf(0));
+    }
+
+    private void addTablesInDocxFile(XWPFDocument document) throws IOException {
+        int countOfAllPages = PDFScanner.countPageInPDFs();
+        int countOfTables = (countOfAllPages / 4); // колличество таблиц
+        for (int indexTable = 0; indexTable < countOfTables + 1; indexTable++) {
+            creteTable(document, indexTable, 2, 2);
+        }
+    }
+
+    public static int getCountOfUsedPages() {
+        return countOfUsedPages;
     }
 
     private void addImagesToDocument(int countOfFiles) throws IOException, InvalidFormatException {
@@ -198,5 +198,4 @@ public class Convertor {
             throw new RuntimeException(e);
         }
     }
-
 }
