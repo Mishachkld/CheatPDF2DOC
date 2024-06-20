@@ -19,24 +19,24 @@ import static org.mishach.Tools.Constants.*;
 
 public class PDFScanner {
 
-    private static int numbersOfPage = 0;  // переименовать в колличествоСтраниц
+    private static int numberOfPage = 0;  // переименовать в колличествоСтраниц
     private static int indexOfPage = 0; // индекс текущей страницы
 
 
-    public static int countPageInPDFs() throws IOException {
-        if (numbersOfPage == 0) {
-            try (Stream<Path> filesStream = Files.walk(Paths.get(PATH_TO_PDF_FOLDER))) {
+    public static int countPageInPDFsFolder(String pdfFolderPath) throws IOException {
+        if (numberOfPage == 0) {
+            try (Stream<Path> filesStream = Files.walk(Paths.get(pdfFolderPath))) {
                 filesStream.forEach(file -> {
                     try {
                         int pages = countPageInPDF(file.toFile());
-                        numbersOfPage += pages;
+                        numberOfPage += pages;
                     } catch (IOException e) {
                         System.out.println("Не удалось посчитать страницы :(");
                     }
                 });
             }
         }
-        return numbersOfPage;
+        return numberOfPage;
     }
 
     public static int countPageInPDF(File file) throws IOException {
@@ -46,7 +46,7 @@ public class PDFScanner {
         return pages;
     }
 
-    public static int convertPDFPagesToImages(File pdfFile) { // добавляем в папку temp скрины
+    public static int convertPDFPagesToImages(File pdfFile, String pathToSaveImages) { // добавляем в папку temp скрины
         int countOfPages = 0;
         try {
             PDDocument document = PDDocument.load(pdfFile);
@@ -57,7 +57,7 @@ public class PDFScanner {
 
                 BufferedImage bufferedImage = pdfRenderer.renderImageWithDPI(pageIndex, SCAN_RESOLUTION_DPI);
                 setServiceInfoToImage(bufferedImage, pdfFile.getName());
-                ImageIO.write(bufferedImage, "PNG", new File(PATH_TO_SAVED_PDF_IMAGES_FILES + savePath));
+                ImageIO.write(bufferedImage, "PNG", new File(pathToSaveImages + savePath));
             }
             document.close();
         } catch (IOException e) {
@@ -66,13 +66,15 @@ public class PDFScanner {
         return countOfPages;
     }
 
-    private static void setServiceInfoToImage(BufferedImage bim, String fileName) {
+    private static void setServiceInfoToImage(BufferedImage bim, String pdfName) {
         indexOfPage++;
-        fileName = cutString(fileName, 48);
+        pdfName = Tools.cutString(pdfName, 48);
         Graphics graphics = bim.getGraphics();
         setUpGraphics(graphics);
         int xPosition;
         int yPosition;
+        int xTextPosition = bim.getWidth() / 4;
+        int yTextPosition = bim.getHeight() - 100;
         NumberPositionEnum indexPosition;
         if (indexOfPage % 2 == 1) {
             xPosition = bim.getWidth() / 2 + bim.getWidth() / 4  + 150;
@@ -83,19 +85,14 @@ public class PDFScanner {
             yPosition = bim.getHeight() - 100;
             indexPosition = NumberPositionEnum.LEFT;
         }
-        String textImageServiceInfo = generateText(indexPosition);
-        graphics.drawString(textImageServiceInfo, xPosition, yPosition);
-        graphics.drawString(fileName, bim.getWidth() / 4 , bim.getHeight() - 100);
+        String textImageServiceInfo = generateNumberPositionToText(indexPosition); // скорее можно просто удалить
+        graphics.drawString(textImageServiceInfo, xPosition, yPosition); // записываем индекс картинки
+        graphics.drawString(pdfName, xTextPosition , yTextPosition); // записываем название файла на картинку
     }
 
-    private static String cutString(String string, int cutSize) {
-        if (string.length() > cutSize) {
-            return string.substring(0, cutSize - 1);
-        }
-        return string;
-    }
 
-    private static String generateText(NumberPositionEnum numberPosition) {
+
+    private static String generateNumberPositionToText(NumberPositionEnum numberPosition) {
         StringBuilder builder = new StringBuilder();
         String splitString = "         ";
         switch (numberPosition) {
