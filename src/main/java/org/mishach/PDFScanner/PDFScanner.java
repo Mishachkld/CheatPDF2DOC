@@ -20,14 +20,16 @@ import static org.mishach.Tools.Constants.*;
 public class PDFScanner {
 
     private static int numbersOfPage = 0;  // переименовать в колличествоСтраниц
-    private static int indexOfPage = 1;
+    private static int indexOfPage = 0; // индекс текущей страницы
+
 
     public static int countPageInPDFs() throws IOException {
         if (numbersOfPage == 0) {
             try (Stream<Path> filesStream = Files.walk(Paths.get(PATH_TO_PDF_FOLDER))) {
                 filesStream.forEach(file -> {
                     try {
-                        numbersOfPage += countPageInPDF(file.toFile());
+                        int pages = countPageInPDF(file.toFile());
+                        numbersOfPage += pages;
                     } catch (IOException e) {
                         System.out.println("Не удалось посчитать страницы :(");
                     }
@@ -37,71 +39,83 @@ public class PDFScanner {
         return numbersOfPage;
     }
 
-    private static int countPageInPDF(File file) throws IOException {
-        return PDDocument.load(file).getNumberOfPages();
+    public static int countPageInPDF(File file) throws IOException {
+        PDDocument document = PDDocument.load(file);
+        int pages = document.getNumberOfPages();
+        document.close();
+        return pages;
     }
 
     public static int convertPDFPagesToImages(File pdfFile) { // добавляем в папку temp скрины
+        int countOfPages = 0;
         try {
             PDDocument document = PDDocument.load(pdfFile);
             PDFRenderer pdfRenderer = new PDFRenderer(document);
-            int countOfPages = document.getNumberOfPages();
+            countOfPages = document.getNumberOfPages();
             for (int pageIndex = 0; pageIndex < document.getNumberOfPages(); pageIndex++) {
                 String savePath = Tools.generatePathToFile("/page-", pageIndex, ".png");
-                BufferedImage bufferedImage = pdfRenderer.renderImageWithDPI(pageIndex, SCAN_DPI);
-                getServiceInfoToImage(bufferedImage, pdfFile.getName());
+
+                BufferedImage bufferedImage = pdfRenderer.renderImageWithDPI(pageIndex, SCAN_RESOLUTION_DPI);
+                setServiceInfoToImage(bufferedImage, pdfFile.getName());
                 ImageIO.write(bufferedImage, "PNG", new File(PATH_TO_SAVED_PDF_IMAGES_FILES + savePath));
             }
             document.close();
-            return countOfPages;
         } catch (IOException e) {
-            System.out.println("PDFScanner.convertPDFPagesToImages() Файл не конвертируется :(" + e);
+            System.out.println("PDFScanner.convertPDFPagesToImages() Файл не конвертируется :( :    " + e);
         }
-        return 0;
+        return countOfPages;
     }
 
-    private static void getServiceInfoToImage(BufferedImage bim, String fileName) {
+    private static void setServiceInfoToImage(BufferedImage bim, String fileName) {
+        indexOfPage++;
+        fileName = cutString(fileName, 48);
         Graphics graphics = bim.getGraphics();
         setUpGraphics(graphics);
         int xPosition;
         int yPosition;
-        TextPositionEnum textPosition;
+        NumberPositionEnum indexPosition;
         if (indexOfPage % 2 == 1) {
-            xPosition = bim.getWidth() / 2 + bim.getWidth() / 4;
+            xPosition = bim.getWidth() / 2 + bim.getWidth() / 4  + 150;
             yPosition = bim.getHeight() - 100;
-            textPosition = TextPositionEnum.LEFT;
+            indexPosition = NumberPositionEnum.RIGHT;
         } else {
             xPosition = 150;
             yPosition = bim.getHeight() - 100;
-            textPosition = TextPositionEnum.RIGHT;
-
+            indexPosition = NumberPositionEnum.LEFT;
         }
-        String textImageServiceInfo = generateText(fileName, textPosition);
+        String textImageServiceInfo = generateText(indexPosition);
         graphics.drawString(textImageServiceInfo, xPosition, yPosition);
-        indexOfPage++;
+        graphics.drawString(fileName, bim.getWidth() / 4 , bim.getHeight() - 100);
     }
 
-    private static String generateText(String fileName, TextPositionEnum textPosition) {
+    private static String cutString(String string, int cutSize) {
+        if (string.length() > cutSize) {
+            return string.substring(0, cutSize - 1);
+        }
+        return string;
+    }
+
+    private static String generateText(NumberPositionEnum numberPosition) {
         StringBuilder builder = new StringBuilder();
         String splitString = "         ";
-        switch (textPosition) {
-            case RIGHT:
-                builder.append(indexOfPage).append(splitString).append(fileName);
-                break;
+        switch (numberPosition) {
             case LEFT:
-                builder.append(fileName).append(splitString).append(indexOfPage);
+                builder.append(indexOfPage).append(splitString);
+                break;
+            case RIGHT :
+                builder.append(splitString).append(indexOfPage);
                 break;
         }
         return builder.toString();
     }
 
     private static void setUpGraphics(Graphics graphics) {
-        Font font = new Font("Calibre", Font.PLAIN, 48);
+        Font font = new Font("Calibre", Font.PLAIN, 56);
         graphics.setFont(font);
         graphics.setColor(Color.BLACK);
     }
 
-    private enum TextPositionEnum {
+    private enum NumberPositionEnum {
         RIGHT, LEFT
     }
 }

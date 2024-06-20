@@ -21,6 +21,8 @@ import static org.mishach.Tools.Constants.*;
 
 public class Convertor {
     private static int countOfUsedPages = 0;
+
+    private static int numeratedPageCounter = 1;
     private final String docxFilePath;
 
     public Convertor(String docxFilePath) {
@@ -30,6 +32,7 @@ public class Convertor {
     public void generateCheat() {
         generateDocxFile();
         scanFolder();
+        numeratePDF();
     }
 
     private void scanFolder() {
@@ -138,8 +141,19 @@ public class Convertor {
         }
     }
 
-    public static int getCountOfUsedPages() {
-        return countOfUsedPages;
+    public static void numeratePDF(){
+        try (Stream<Path> stream = Files.walk(Paths.get(PATH_TO_PDF_FOLDER))) {
+            stream.forEach(file -> {
+                try {
+                    System.out.println(numeratedPageCounter + " -- " + file.getFileName().toString() );
+                    numeratedPageCounter += PDFScanner.countPageInPDF(file.toFile());
+                } catch (IOException e) {
+                    System.out.println("numeratePDF(). Не получается посчитать страницы: " + e);
+                }
+            });
+        } catch (IOException e) {
+            System.out.println("numeratePDF(). Не возможно прочитать файлы в папке: " + e);
+        }
     }
 
     private void addImagesToDocument(int countOfFiles) throws IOException, InvalidFormatException {
