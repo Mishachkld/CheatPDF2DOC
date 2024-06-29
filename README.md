@@ -4,6 +4,6 @@
 2. Имеется нумерация  
 3. Подписано название файла
 
-Результат выполнения программы находится в **src/main/resources/cheat/cheat.docx**
+Результат выполнения программы находится в [**src/main/resources/cheat/cheat.docx**](**https://github.com/Mishachkld/CheatPDF2DOC/blob/master/src/main/resources/cheat/cheat.docx**)
 
 ## Эта программа хорошо подойдет для создания удобных шпор из билетов :3
