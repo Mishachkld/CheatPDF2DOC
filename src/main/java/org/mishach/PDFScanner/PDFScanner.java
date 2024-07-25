@@ -15,28 +15,31 @@ import java.nio.file.Paths;
 import java.util.stream.Stream;
 
 import static org.mishach.Tools.Constants.*;
+import static org.mishach.Tools.Tools.isCorrectPath;
 
 
 public class PDFScanner {
 
-    private static int numberOfPage = 0;  // переименовать в колличествоСтраниц
+    private static int numberOfPages = 0;  // переименовать в колличествоСтраниц
     private static int indexOfPage = 0; // индекс текущей страницы
 
 
     public static int countPageInPDFsFolder(String pdfFolderPath) throws IOException {
-        if (numberOfPage == 0) {
+        if (numberOfPages == 0) {
             try (Stream<Path> filesStream = Files.walk(Paths.get(pdfFolderPath))) {
                 filesStream.forEach(file -> {
-                    try {
-                        int pages = countPageInPDF(file.toFile());
-                        numberOfPage += pages;
-                    } catch (IOException e) {
-                        System.out.println("Не удалось посчитать страницы :(");
+                    if (isCorrectPath(file.getFileName().toString())) {
+                        try {
+                            int pages = countPageInPDF(file.toFile());
+                            numberOfPages += pages;
+                        } catch (IOException e) {
+                            System.out.println("Не удалось посчитать страницы :(");
+                        }
                     }
                 });
             }
         }
-        return numberOfPage;
+        return numberOfPages;
     }
 
     public static int countPageInPDF(File file) throws IOException {
@@ -71,25 +74,24 @@ public class PDFScanner {
         pdfName = Tools.cutString(pdfName, 48);
         Graphics graphics = bim.getGraphics();
         setUpGraphics(graphics);
-        int xPosition;
-        int yPosition;
+        int xNumberPosition;
+        int yNumberPosition;
         int xTextPosition = bim.getWidth() / 4;
         int yTextPosition = bim.getHeight() - 100;
         NumberPositionEnum indexPosition;
         if (indexOfPage % 2 == 1) {
-            xPosition = bim.getWidth() / 2 + bim.getWidth() / 4  + 150;
-            yPosition = bim.getHeight() - 100;
+            xNumberPosition = bim.getWidth() / 2 + bim.getWidth() / 4 + 150;
+            yNumberPosition = bim.getHeight() - 100;
             indexPosition = NumberPositionEnum.RIGHT;
         } else {
-            xPosition = 150;
-            yPosition = bim.getHeight() - 100;
+            xNumberPosition = 150;
+            yNumberPosition = bim.getHeight() - 100;
             indexPosition = NumberPositionEnum.LEFT;
         }
         String textImageServiceInfo = generateNumberPositionToText(indexPosition); // скорее можно просто удалить
-        graphics.drawString(textImageServiceInfo, xPosition, yPosition); // записываем индекс картинки
-        graphics.drawString(pdfName, xTextPosition , yTextPosition); // записываем название файла на картинку
+        graphics.drawString(textImageServiceInfo, xNumberPosition, yNumberPosition); // записываем индекс картинки
+        graphics.drawString(pdfName, xTextPosition, yTextPosition); // записываем название файла на картинку
     }
-
 
 
     private static String generateNumberPositionToText(NumberPositionEnum numberPosition) {
@@ -99,7 +101,7 @@ public class PDFScanner {
             case LEFT:
                 builder.append(indexOfPage).append(splitString);
                 break;
-            case RIGHT :
+            case RIGHT:
                 builder.append(splitString).append(indexOfPage);
                 break;
         }

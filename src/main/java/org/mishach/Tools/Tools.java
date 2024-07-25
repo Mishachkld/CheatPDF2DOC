@@ -11,4 +11,8 @@ public class Tools {
         }
         return string;
     }
+
+    public static boolean isCorrectPath(String path) {
+        return path.contains(".pdf");
+    }
 }
