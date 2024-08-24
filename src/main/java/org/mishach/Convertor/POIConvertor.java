@@ -30,7 +30,7 @@ public class POIConvertor implements Convertor {
     private final String pdfFolderPath;
 
     /**
-     * @param docxFilePath  путь, где будет рапололгаться DOCX файл
+     * @param docxFilePath  путь, где будет распологаться DOCX файл
      * @param pdfFolderPath путь, до PDF файлов
      */
     public POIConvertor(String docxFilePath, String pdfFolderPath) {
@@ -38,11 +38,6 @@ public class POIConvertor implements Convertor {
         this.pdfFolderPath = pdfFolderPath;
     }
 
-    public void generateCheat() {
-        generateDocxFile();
-        scanFolder(pdfFolderPath);
-        numeratePDF(pdfFolderPath);
-    }
 
     private void scanFolder(String pdfFolderPath) {
         try (Stream<Path> paths = Files.walk(Paths.get(pdfFolderPath))) {
@@ -53,24 +48,24 @@ public class POIConvertor implements Convertor {
                     try {
                         writeImagesUseSheetsInCheatFile(countOfImageFiles, countOfUsedPages); // костыль просто п
                     } catch (IOException | InvalidFormatException e) {
-                        System.out.println("scanFolder() errror" + e);
+                        System.out.println("scanFolder() ошибка чтения файла из папки" + e);
                     }
                 }
             });
         } catch (IOException e) {
-            System.out.println("File not found :(");
+            System.out.println("scanFolder() File not found :(");
         }
     }
 
-    synchronized private void writeImagesUseSheetsInCheatFile(int countOfImageFiles, int countOfUsedPages) throws IOException, InvalidFormatException {
-        Path pathToDocxFile = Paths.get(PATH_TO_DOCX_FILE);
+    private void writeImagesUseSheetsInCheatFile(int countOfImageFiles, int countOfUsedPages) throws IOException, InvalidFormatException {
+        Path pathToDocxFile = Paths.get(docxFilePath);
         XWPFDocument document = new XWPFDocument(Files.newInputStream(pathToDocxFile));
         System.out.println("Adding images to DOCX file....");
         for (int indexPage = 0; indexPage < countOfImageFiles; indexPage++) {
             int indexTable = countOfUsedPages / 8 + countOfUsedPages / 8;
             int indexRow = countOfUsedPages % 8 / 4 % 2;
             int indexColumn = countOfUsedPages % 8 % 4 / 2;
-            System.out.println(countOfUsedPages + " " + indexPage); // TODO это нужно убрать
+//            System.out.println(countOfUsedPages + " " + indexPage); // TODO это нужно убрать
             if (countOfUsedPages % 2 == 1) {
                 indexTable++;
                 indexColumn = (indexColumn == 1) ? 0 : 1;
@@ -83,6 +78,10 @@ public class POIConvertor implements Convertor {
         document.close();
     }
 
+    /**
+     * @param cell      Ячейка, в которую добавляется изображение
+     * @param indexPage индекс страницы, которую нужно загрузить в DOCX файл в таблицу
+     */
     private void loadImageToDoc(XWPFDocument document, XWPFTableCell cell, int indexPage) throws IOException, InvalidFormatException {
         String pathImage = Tools.generatePathToFile("temp/page-", indexPage, ".png");
         FileInputStream is = new FileInputStream(pathImage);
@@ -175,6 +174,8 @@ public class POIConvertor implements Convertor {
 
     @Override
     public void convert() {
-
+        generateDocxFile();
+        scanFolder(pdfFolderPath);
+        numeratePDF(pdfFolderPath);
     }
 }
